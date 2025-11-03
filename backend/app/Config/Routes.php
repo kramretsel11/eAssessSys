@@ -5,7 +5,6 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-$routes->get('/', 'Home::index');
 
 $routes->group('e_assessment/api/v1', function($routes){
 	$routes->group('auth', function($routes){
@@ -52,5 +51,26 @@ $routes->group('e_assessment/api/v1', function($routes){
 		$routes->post('assessment-requests/update', 'AssessmentRequestController::updateRequest');
 		$routes->post('assessment-requests/update-status', 'AssessmentRequestController::updateRequestStatus');
 		$routes->post('assessment-requests/track', 'AssessmentRequestController::trackRequest');
+	});
+
+	$routes->group('dashboard', function($routes){
+		$routes->get('statistics', 'DashboardController::getStatistics');
+		$routes->get('municipalities', 'DashboardController::getMunicipalities');
+		$routes->get('chart-data', 'DashboardController::getAssetsChartData');
+		$routes->get('recent-activities', 'DashboardController::getRecentActivities');
+	});
+
+	$routes->group('transactions', function($routes){
+		$routes->get('status/(:segment)', 'TransactionController::getRequestsByStatus/$1');
+		$routes->get('quick-stats', 'TransactionController::getQuickStats');
+		$routes->post('update-status', 'TransactionController::updateStatus');
+		$routes->post('bulk-update', 'TransactionController::bulkUpdateStatus');
+		$routes->get('test-approve/(:num)', 'TransactionController::testApprove/$1');
+	});
+
+	$routes->group('certificates', function($routes){
+		$routes->get('(:num)', 'CertificateController::getAvailableCertificates/$1');
+		$routes->get('ownership/(:num)', 'CertificateController::generateOwnershipCertificate/$1');
+		$routes->get('tax-declaration/(:num)', 'CertificateController::generateTaxDeclarationCertificate/$1');
 	});
 });

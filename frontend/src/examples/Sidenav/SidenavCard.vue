@@ -3,10 +3,7 @@
     id="sidenavCard"
     class="shadow-none card card-background card-background-mask-secondary"
   >
-    <div
-      class="full-background"
-      :style="{ 'background-image': 'url(' + imgWhiteCurved + ')' }"
-    ></div>
+    <div class="full-background bg-gradient-dark"></div>
     <div class="p-3 card-body text-start w-100">
       <div
         class="mb-3 text-center bg-white shadow icon icon-shape icon-sm d-flex align-items-center justify-content-center border-radius-md"
@@ -38,7 +35,6 @@
   </div>
 </template>
 <script>
-import imgWhiteCurved from "../../assets/img/curved-images/white-curved.jpeg";
 export default {
   name: "SidenavCard",
   props: {
@@ -62,11 +58,6 @@ export default {
       type: String,
       default: "",
     },
-  },
-  data() {
-    return {
-      imgWhiteCurved,
-    };
   },
 };
 </script>
