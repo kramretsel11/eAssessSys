@@ -16,9 +16,17 @@
         <div class="page-header min-vh-75">
           <div class="container">
             <div class="row">
-              <div class="mx-auto col-xl-4 col-lg-5 col-md-6 d-flex flex-column">
-                <div class="mt-8 card card-plain">
-                  <div class="pb-0 card-header text-start">
+              <div class="col-xl-4 col-lg-5 col-md-7 d-flex flex-column mx-lg-0 mx-auto">
+                <div class="card card-plain">
+                  <div class="pb-0 card-header text-start text-center">
+                    <!-- Provincial Logo -->
+                    <div class="mb-3">
+                      <img 
+                        src="/images/PROVINCIAL OF AURORA.jpg" 
+                        alt="Provincial of Aurora" 
+                        style="height: 80px; width: auto; object-fit: contain;"
+                      />
+                    </div>
                     <h3 class="font-weight-bolder text-success text-gradient">
                       Welcome back
                     </h3>
@@ -67,17 +75,13 @@
                   </div>
                 </div>
               </div>
-              <div class="col-md-6">
-                <div
-                  class="top-0 oblique position-absolute h-100 d-md-block d-none me-n8"
-                >
+              <div class="col-6">
+                <div class="oblique position-absolute top-0 h-100 d-md-block d-none me-n4">
                   <div
-                    class="bg-cover oblique-image position-absolute fixed-top ms-auto h-100 z-index-0 ms-n6"
+                    class="oblique-image bg-cover position-absolute fixed-top h-100 z-index-0"
                     :style="{
-                      backgroundImage:
-                        'url(' +
-                        require('@/assets/img/curved-images/masthead5.jpg') +
-                        ')',
+                      backgroundImage: 'url(/images/Aurora-Capitol.jpg)',
+                      left: '-20%'
                     }"
                   ></div>
                 </div>
@@ -96,6 +100,7 @@ import Navbar from "@/examples/PageLayout/Navbar.vue";
 import SoftInput from "@/components/SoftInput.vue";
 import SoftSwitch from "@/components/SoftSwitch.vue";
 import SoftButton from "@/components/SoftButton.vue";
+import AuthService from "@/services/auth.js";
 const body = document.getElementsByTagName("body")[0];
 import { mapMutations } from "vuex";
 
@@ -131,26 +136,38 @@ export default {
     async handleSubmit(e) {
       e.preventDefault();
       console.log("Form data: ", this.form);
-			this.$api.post("/e_assessment/api/v1/auth/login", this.form).then((res) => {
-				let response = {...res.data}
-        console.log("Login response: ", response)
-				if(!response.error){
-					
-					localStorage.setItem("userToken", response.jwt)
-          this.$router.push("/dashboard")
-					// if(jwtData.aud === 'admin'){
-					// 	this.$router.push("/dashboard")
-					// } else if(jwtData.aud === 'user'){
-          //   this.$router.push("/")
-          // }
-				} else {
-				// show Error
-					this.$message.error(response.message)
-				}
-			}).catch((err) => {
-        console.log("Login error: ", err)
-      });
-		},
+      
+      try {
+        // Use the enhanced login method from AuthService
+        const loginResult = await AuthService.loginWithRole(this.form.username, this.form.password);
+        
+        if (loginResult.success) {
+          console.log("Login successful: ", loginResult.user);
+          
+          // Redirect based on user role
+          if (loginResult.user.role === 'admin') {
+            this.$router.push("/admin");
+          } else {
+            this.$router.push("/dashboard");
+          }
+        } else {
+          console.error("Login failed: ", loginResult.error);
+          // Show error message
+          if (this.$message && this.$message.error) {
+            this.$message.error(loginResult.error);
+          } else {
+            alert(loginResult.error); // Fallback
+          }
+        }
+      } catch (err) {
+        console.error("Login error: ", err);
+        if (this.$message && this.$message.error) {
+          this.$message.error("An error occurred during login");
+        } else {
+          alert("An error occurred during login"); // Fallback
+        }
+      }
+    },
   },
 };
 </script>

@@ -7,8 +7,19 @@ use CodeIgniter\Router\RouteCollection;
  */
 
 $routes->group('e_assessment/api/v1', function($routes){
+	// Test endpoint for debugging
+	$routes->get('test', function() {
+		return service('response')->setJSON([
+			'status' => 'success', 
+			'message' => 'API is working',
+			'timestamp' => date('Y-m-d H:i:s')
+		]);
+	});
+	
 	$routes->group('auth', function($routes){
 		$routes->post('login', 'Auth::login');
+		$routes->get('user', 'Auth::getCurrentUser');
+		$routes->get('isAdmin', 'Auth::isAdmin');
 	}); 
 
 	$routes->group('users', function($routes){
@@ -18,6 +29,13 @@ $routes->group('e_assessment/api/v1', function($routes){
 		$routes->post('changePassword', 'Users::ChangePassword');
 		$routes->get('getUsersList', 'Users::getAllUserList');
 		$routes->post('getUserById', 'Users::getUserDetails');
+		
+		// Admin User Management API
+		$routes->post('admin/list', 'Users::getUsersForAdmin');
+		$routes->post('admin/create', 'Users::createUserForAdmin');
+		$routes->post('admin/update', 'Users::updateUserForAdmin');
+		$routes->post('admin/delete', 'Users::deleteUserForAdmin');
+		$routes->get('admin/types', 'Users::getUserTypes');
 	});
 	
 
@@ -51,6 +69,20 @@ $routes->group('e_assessment/api/v1', function($routes){
 		$routes->post('assessment-requests/update', 'AssessmentRequestController::updateRequest');
 		$routes->post('assessment-requests/update-status', 'AssessmentRequestController::updateRequestStatus');
 		$routes->post('assessment-requests/track', 'AssessmentRequestController::trackRequest');
+
+		// Audit Log Routes
+		$routes->get('audit-logs', 'AuditLogController::getLogs');
+		$routes->get('audit-logs/(:num)', 'AuditLogController::getLog/$1');
+		$routes->post('audit-logs/create', 'AuditLogController::createLog');
+		$routes->get('audit-logs/statistics', 'AuditLogController::getStatistics');
+		$routes->get('audit-logs/export', 'AuditLogController::exportLogs');
+		$routes->post('audit-logs/cleanup', 'AuditLogController::cleanup');
+
+		// Report Generation Routes
+		$routes->post('reports/generate', 'ReportController::generateReport');
+		$routes->get('reports/download/(:any)', 'ReportController::downloadReport/$1');
+		$routes->get('reports/recent', 'ReportController::getRecentReports');
+		$routes->post('reports/delete', 'ReportController::deleteReport');
 	});
 
 	$routes->group('dashboard', function($routes){
@@ -72,5 +104,25 @@ $routes->group('e_assessment/api/v1', function($routes){
 		$routes->get('(:num)', 'CertificateController::getAvailableCertificates/$1');
 		$routes->get('ownership/(:num)', 'CertificateController::generateOwnershipCertificate/$1');
 		$routes->get('tax-declaration/(:num)', 'CertificateController::generateTaxDeclarationCertificate/$1');
+	});
+
+	$routes->group('evaluations', function($routes){
+		$routes->get('assigned', 'EvaluationController::getAssignedEvaluations');
+		$routes->post('update', 'EvaluationController::updateEvaluation');
+		$routes->get('certificates', 'EvaluationController::getEvaluatorCertificates');
+		$routes->post('certificate/generate', 'EvaluationController::generateCertificate');
+	});
+
+	$routes->group('evaluator', function($routes){
+		$routes->get('stats', 'EvaluationController::getEvaluatorStats');
+		$routes->get('recent', 'EvaluationController::getRecentEvaluations');
+	});
+
+	$routes->group('property-values', function($routes){
+		$routes->get('market-values', 'PropertyValueController::getMarketValues');
+		$routes->get('assessment-levels', 'PropertyValueController::getAssessmentLevels');
+		$routes->post('calculate', 'PropertyValueController::calculatePropertyValues');
+		$routes->post('calculate-building', 'PropertyValueController::calculateBuildingValues');
+		$routes->post('calculate-machinery', 'PropertyValueController::calculateMachineryValues');
 	});
 });

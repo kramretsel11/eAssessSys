@@ -19,6 +19,106 @@
 CREATE DATABASE IF NOT EXISTS `easessment_db` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
 USE `easessment_db`;
 
+-- Dumping structure for table easessment_db.audit_logs
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `action` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
+  `resource_type` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  `resource_id` int DEFAULT NULL,
+  `details` text COLLATE utf8mb4_general_ci,
+  `ip_address` varchar(45) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `user_agent` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `fk_audit_logs_user` (`user_id`),
+  CONSTRAINT `fk_audit_logs_user` FOREIGN KEY (`user_id`) REFERENCES `tblusers` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Dumping data for table easessment_db.audit_logs: ~0 rows (approximately)
+DELETE FROM `audit_logs`;
+
+-- Dumping structure for procedure easessment_db.sp_cleanup_audit_logs
+DELIMITER //
+CREATE PROCEDURE `sp_cleanup_audit_logs`(IN p_days INT)
+BEGIN
+  DECLARE affected_rows INT DEFAULT 0;
+  
+  DELETE FROM audit_logs 
+  WHERE created_at < DATE_SUB(NOW(), INTERVAL p_days DAY);
+  
+  SET affected_rows = ROW_COUNT();
+  
+  
+  INSERT INTO audit_logs (
+    user_id, action, resource_type, details, created_at
+  ) VALUES (
+    1, 'Cleanup Audit Logs', 'System', 
+    CONCAT('Deleted ', affected_rows, ' audit log records older than ', p_days, ' days'),
+    NOW()
+  );
+  
+  SELECT affected_rows as deleted_records;
+END//
+DELIMITER ;
+
+-- Dumping structure for procedure easessment_db.sp_get_audit_stats
+DELIMITER //
+CREATE PROCEDURE `sp_get_audit_stats`(IN p_days INT)
+BEGIN
+  DECLARE start_date DATE DEFAULT DATE_SUB(CURDATE(), INTERVAL p_days DAY);
+  
+  SELECT 
+    
+    (SELECT COUNT(*) FROM audit_logs WHERE DATE(created_at) >= start_date) as total_logs,
+    
+    
+    (SELECT COUNT(*) FROM audit_logs WHERE DATE(created_at) = CURDATE()) as logs_today,
+    
+    
+    (SELECT COUNT(*) FROM audit_logs WHERE YEARWEEK(created_at) = YEARWEEK(NOW())) as logs_this_week,
+    
+    
+    (SELECT CONCAT(tu.firstName, ' ', tu.lastName) 
+     FROM audit_logs al 
+     JOIN tblusers tu ON al.user_id = tu.id 
+     WHERE DATE(al.created_at) >= start_date 
+     GROUP BY al.user_id 
+     ORDER BY COUNT(*) DESC 
+     LIMIT 1) as most_active_user,
+    
+    
+    (SELECT action 
+     FROM audit_logs 
+     WHERE DATE(created_at) >= start_date 
+     GROUP BY action 
+     ORDER BY COUNT(*) DESC 
+     LIMIT 1) as most_common_action;
+END//
+DELIMITER ;
+
+-- Dumping structure for procedure easessment_db.sp_log_activity
+DELIMITER //
+CREATE PROCEDURE `sp_log_activity`(
+  IN p_user_id INT,
+  IN p_action VARCHAR(100),
+  IN p_resource_type VARCHAR(50),
+  IN p_resource_id INT,
+  IN p_details TEXT,
+  IN p_ip_address VARCHAR(45),
+  IN p_user_agent VARCHAR(500)
+)
+BEGIN
+  INSERT INTO audit_logs (
+    user_id, action, resource_type, resource_id, 
+    details, ip_address, user_agent, created_at
+  ) VALUES (
+    p_user_id, p_action, p_resource_type, p_resource_id, 
+    p_details, p_ip_address, p_user_agent, NOW()
+  );
+END//
+DELIMITER ;
+
 -- Dumping structure for table easessment_db.tblassessment_levels
 CREATE TABLE IF NOT EXISTS `tblassessment_levels` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -35,7 +135,7 @@ CREATE TABLE IF NOT EXISTS `tblassessment_levels` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table easessment_db.tblassessment_levels: ~0 rows (approximately)
+-- Dumping data for table easessment_db.tblassessment_levels: ~3 rows (approximately)
 DELETE FROM `tblassessment_levels`;
 INSERT INTO `tblassessment_levels` (`id`, `categoryId`, `assessmentClass`, `overValue`, `notOverValue`, `assessmentLevel`, `description`, `created_at`, `updated_at`, `deleted_at`, `created_by`) VALUES
 	(1, 2, 'Residential', 0, 175000, 0, '', '2025-10-28 17:08:00', '2025-10-28 17:08:00', NULL, 1),
@@ -89,10 +189,10 @@ CREATE TABLE IF NOT EXISTS `tblassessment_requests` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table easessment_db.tblassessment_requests: ~0 rows (approximately)
+-- Dumping data for table easessment_db.tblassessment_requests: ~1 rows (approximately)
 DELETE FROM `tblassessment_requests`;
 INSERT INTO `tblassessment_requests` (`id`, `arpNo`, `pin`, `assessmentLevelId`, `categoryId`, `ownerName`, `marriedTo`, `ownerAddress`, `contactNo`, `tin`, `adminName`, `adminMarriedTo`, `adminAddress`, `adminContactNo`, `adminTin`, `street`, `barangay`, `municipality`, `province`, `octTctCloaNo`, `surveyNo`, `lotNo`, `areaNo`, `generalDescription`, `structuralChecklist`, `additionalItems`, `propertyAppraisal`, `propertyBounderies`, `landAppraisal`, `otherImprovements`, `propertyAssessment`, `appraisedBy`, `recommendingApproval`, `approvedBy`, `appraisedDate`, `recommendDate`, `approvedDate`, `memorada`, `requestStatus`, `created_at`, `updated_at`, `deleted_at`) VALUES
-	(1, '213213213', '123123', NULL, NULL, 'asdasdasd', 'fdfdfd', 'sdasdasd', 2147483647, '', 'sadasdas', 'fdsfsfsd', 'sadasdasdasdasdasd', 0, '', 'asdasdas', 'BORLONGAN', 'DIPACULAO', 'AURORA', NULL, 'PSD-03-258733', '325-A-2', '778 sqm', '{"kindOfBldg":"Commercial","structuralType":"Mixed Concrete (Lodging House)","bldgPermit":"","dateIssued":"","cct":"","certificateCompletionIssuedOn":"","certificateOccupancyIssuedOn":"","dateConstructed":"","dateOccupied":"","bldgAge":0,"noOfStoreys":2,"area1st":52.1,"area2nd":47,"area3rd":0,"area4th":0,"totalFloorArea":99.1}', '{"Roof":[],"Flooring":[],"WallsPartions":[]}', '[]', '{"unit":"sqm","unitCost":4380,"computation":"","subTotal":0}', '{"north":"","east":"","west":"","south":""}', '[]', '[]', '{"taxable":true,"exempt":false,"effectivity":"","values":[{"actualUse":"COMMERCIAL","marketValue":434060,"assessmentLevel":35,"assessedValue":151920}]}', NULL, NULL, NULL, NULL, NULL, NULL, 'Declared new', NULL, '2025-10-28 17:28:08', '2025-10-28 17:28:20', NULL);
+	(1, '213213213', '123123', NULL, NULL, 'asdasdasd', 'fdfdfd', 'sdasdasd', 2147483647, '', 'sadasdas', 'fdsfsfsd', 'sadasdasdasdasdasd', 0, '', 'asdasdas', 'BORLONGAN', 'DIPACULAO', 'AURORA', NULL, 'PSD-03-258733', '325-A-2', '778 sqm', '{"kindOfBldg":"Commercial","structuralType":"Mixed Concrete (Lodging House)","bldgPermit":"","dateIssued":"","cct":"","certificateCompletionIssuedOn":"","certificateOccupancyIssuedOn":"","dateConstructed":"","dateOccupied":"","bldgAge":0,"noOfStoreys":2,"area1st":52.1,"area2nd":47,"area3rd":0,"area4th":0,"totalFloorArea":99.1}', '{"Roof":[],"Flooring":[],"WallsPartions":[]}', '[]', '{"unit":"sqm","unitCost":4380,"computation":"","subTotal":0}', '{"north":"","east":"","west":"","south":""}', '[]', '[]', '{"taxable":true,"exempt":false,"effectivity":"","values":[{"actualUse":"COMMERCIAL","marketValue":434060,"assessmentLevel":35,"assessedValue":151920}]}', NULL, NULL, 1, NULL, NULL, '2025-11-03 21:09:47', 'Request approved after review', 'Approved', '2025-10-28 17:28:08', '2025-11-03 13:09:47', NULL);
 
 -- Dumping structure for table easessment_db.tblcategory
 CREATE TABLE IF NOT EXISTS `tblcategory` (
@@ -106,7 +206,7 @@ CREATE TABLE IF NOT EXISTS `tblcategory` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table easessment_db.tblcategory: ~0 rows (approximately)
+-- Dumping data for table easessment_db.tblcategory: ~2 rows (approximately)
 DELETE FROM `tblcategory`;
 INSERT INTO `tblcategory` (`id`, `name`, `type`, `created_by`, `created_at`, `updated_at`, `deleted_at`) VALUES
 	(1, 'Commercial and Industrial', 'market', 1, '2025-10-28 16:57:22', '2025-10-28 16:57:22', NULL),
@@ -128,7 +228,7 @@ CREATE TABLE IF NOT EXISTS `tblmarket_values` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table easessment_db.tblmarket_values: ~0 rows (approximately)
+-- Dumping data for table easessment_db.tblmarket_values: ~1 rows (approximately)
 DELETE FROM `tblmarket_values`;
 INSERT INTO `tblmarket_values` (`id`, `categoryId`, `municipality`, `kindOfLand`, `categoryClass`, `unit`, `marketValue`, `created_at`, `updated_at`, `deleted_at`, `created_by`) VALUES
 	(1, 1, 'BALER', '', '1st', '', 7000, '2025-10-28 17:00:22', '2025-10-28 17:00:22', NULL, 1);
@@ -146,18 +246,22 @@ CREATE TABLE IF NOT EXISTS `tblusers` (
   `email` varchar(255) NOT NULL,
   `contact` varchar(255) NOT NULL,
   `address` text NOT NULL,
+  `municipality` varchar(50) DEFAULT NULL,
   `userType` int NOT NULL,
   `status` int NOT NULL DEFAULT '1',
   `isDeleted` int NOT NULL DEFAULT '0',
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table easessment_db.tblusers: ~0 rows (approximately)
+-- Dumping data for table easessment_db.tblusers: ~4 rows (approximately)
 DELETE FROM `tblusers`;
-INSERT INTO `tblusers` (`id`, `username`, `password`, `firstName`, `lastName`, `middleName`, `suffix`, `sex`, `email`, `contact`, `address`, `userType`, `status`, `isDeleted`, `createdAt`, `updatedAt`) VALUES
-	(1, 'admin', '5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8', 'Firsts', 'Users', 'Admin', ' ', 'Male', 'test@mail.com', '09876543212', 'test address', 1, 1, 0, '2024-10-12 14:35:21', '2024-10-12 14:35:21');
+INSERT INTO `tblusers` (`id`, `username`, `password`, `firstName`, `lastName`, `middleName`, `suffix`, `sex`, `email`, `contact`, `address`, `municipality`, `userType`, `status`, `isDeleted`, `createdAt`, `updatedAt`) VALUES
+	(1, 'admin', '5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8', 'Firsts', 'Users', 'Admin', ' ', 'Male', 'test@mail.com', '09876543212', 'test address', 'AURORA', 1, 1, 0, '2024-10-12 14:35:21', '2024-10-12 14:35:21'),
+	(4, 'baler_user', '5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8', 'Juan', 'Dela Cruz', 'Santos', '', 'Male', 'juan.baler@aurora.gov.ph', '09123456789', '123 Main St, Baler', 'BALER', 3, 1, 0, '2025-11-18 15:53:10', '2025-11-18 15:53:10'),
+	(5, 'casiguran_user', '5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8', 'Maria', 'Garcia', 'Lopez', '', 'Female', 'maria.casiguran@aurora.gov.ph', '09234567890', '456 Center St, Casiguran', 'CASIGURAN', 3, 1, 0, '2025-11-18 15:53:10', '2025-11-18 15:53:10'),
+	(6, 'dipaculao_eval', '5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8', 'Pedro', 'Santos', 'Cruz', '', 'Male', 'pedro.dipaculao@aurora.gov.ph', '09345678901', '789 Eval Ave, Dipaculao', 'DIPACULAO', 4, 1, 0, '2025-11-18 15:53:10', '2025-11-18 15:53:10');
 
 -- Dumping structure for table easessment_db.tblusertypes
 CREATE TABLE IF NOT EXISTS `tblusertypes` (
@@ -165,13 +269,38 @@ CREATE TABLE IF NOT EXISTS `tblusertypes` (
   `description` varchar(255) NOT NULL,
   `modules` longtext NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table easessment_db.tblusertypes: ~2 rows (approximately)
+-- Dumping data for table easessment_db.tblusertypes: ~4 rows (approximately)
 DELETE FROM `tblusertypes`;
 INSERT INTO `tblusertypes` (`id`, `description`, `modules`) VALUES
 	(1, 'Super Admin', '101,102'),
-	(2, 'Coordinator', '201,202');
+	(2, 'Coordinator', '201,202'),
+	(3, 'Municipality User', '301,302'),
+	(4, 'Evaluator', '401,402');
+
+-- Dumping structure for view easessment_db.vw_audit_logs
+-- Creating temporary table to overcome VIEW dependency errors
+CREATE TABLE `vw_audit_logs` (
+	`id` INT(10) NOT NULL,
+	`user_id` INT(10) NOT NULL,
+	`user_name` VARCHAR(511) NULL COLLATE 'utf8mb4_0900_ai_ci',
+	`username` VARCHAR(255) NULL COMMENT 'Student Number' COLLATE 'utf8mb4_0900_ai_ci',
+	`action` VARCHAR(100) NOT NULL COLLATE 'utf8mb4_general_ci',
+	`resource_type` VARCHAR(50) NOT NULL COLLATE 'utf8mb4_general_ci',
+	`resource_id` INT(10) NULL,
+	`details` TEXT NULL COLLATE 'utf8mb4_general_ci',
+	`ip_address` VARCHAR(45) NULL COLLATE 'utf8mb4_general_ci',
+	`user_agent` VARCHAR(255) NULL COLLATE 'utf8mb4_general_ci',
+	`created_at` DATETIME NOT NULL,
+	`log_date` DATE NULL,
+	`log_time` TIME NULL
+) ENGINE=MyISAM;
+
+-- Dumping structure for view easessment_db.vw_audit_logs
+-- Removing temporary table and create final VIEW structure
+DROP TABLE IF EXISTS `vw_audit_logs`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `vw_audit_logs` AS select `al`.`id` AS `id`,`al`.`user_id` AS `user_id`,concat(`tu`.`firstName`,' ',`tu`.`lastName`) AS `user_name`,`tu`.`username` AS `username`,`al`.`action` AS `action`,`al`.`resource_type` AS `resource_type`,`al`.`resource_id` AS `resource_id`,`al`.`details` AS `details`,`al`.`ip_address` AS `ip_address`,`al`.`user_agent` AS `user_agent`,`al`.`created_at` AS `created_at`,cast(`al`.`created_at` as date) AS `log_date`,cast(`al`.`created_at` as time) AS `log_time` from (`audit_logs` `al` left join `tblusers` `tu` on((`al`.`user_id` = `tu`.`id`))) where (`tu`.`isDeleted` = 0) order by `al`.`created_at` desc;
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

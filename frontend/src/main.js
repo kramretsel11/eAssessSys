@@ -32,12 +32,11 @@ const api = axios.create({ baseURL })
 
 api.interceptors.request.use(
   config => {
-    //   let appData = localStorage.getItem('userToken');
-    //   appData = JSON.parse(appData);
-    //   const token = appData.value;
-    //   if (token) {
-    //       config.headers['Authorization'] = 'Bearer ' + token;
-    //   }
+      // Get the auth token from localStorage
+      const token = localStorage.getItem('token') || localStorage.getItem('userToken');
+      if (token) {
+          config.headers['Authorization'] = 'Bearer ' + token;
+      }
       return config;
   },
   error => {

@@ -51,8 +51,19 @@ abstract class BaseController extends Controller
         // Do Not Edit This Line
         parent::initController($request, $response, $logger);
 
-        // Preload any models, libraries, etc, here.
+        // Set CORS headers
+        $this->response->setHeader('Access-Control-Allow-Origin', '*'); // Allow all origins for now
+        $this->response->setHeader('Access-Control-Allow-Headers', 'X-API-KEY, Origin, X-Requested-With, Content-Type, Accept, Access-Control-Request-Method, Authorization');
+        $this->response->setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+        $this->response->setHeader('Access-Control-Allow-Credentials', 'true');
 
+        // Handle preflight OPTIONS requests
+        if ($request->getMethod() === 'options') {
+            $this->response->setStatusCode(200);
+            return $this->response;
+        }
+
+        // Preload any models, libraries, etc, here.
         // E.g.: $this->session = service('session');
     }
 }

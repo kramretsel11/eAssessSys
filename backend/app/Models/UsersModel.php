@@ -29,7 +29,8 @@ class UsersModel extends Model
         'email', 
         'contact',
         'status',
-        'status',
+        'municipality',
+        'isDeleted'
     ];
 
     protected $useTimestamps = false;

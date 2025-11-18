@@ -4,14 +4,17 @@ namespace App\Controllers;
 
 use App\Models\AssessmentRequestModel;
 use CodeIgniter\RESTful\ResourceController;
+use App\Libraries\AuditLogger;
 
 class AssessmentRequestController extends ResourceController
 {
     protected $model;
+    protected $auditLogger;
 
     public function __construct()
     {
         $this->model = new AssessmentRequestModel();
+        $this->auditLogger = new AuditLogger();
         helper(['url']);
     }
 
@@ -76,7 +79,22 @@ class AssessmentRequestController extends ResourceController
             }
         }
 
-        $this->model->insert($payload);
+        $result = $this->model->insert($payload);
+        
+        if ($result) {
+            // Log assessment request creation
+            $this->auditLogger->log(
+                'Assessment Request Created',
+                'New assessment request created',
+                $payload['userId'] ?? null,
+                [
+                    'request_id' => $this->model->getInsertID(),
+                    'property_address' => $payload['propertyAddress'] ?? 'N/A',
+                    'request_type' => $payload['requestType'] ?? 'N/A'
+                ]
+            );
+        }
+        
         return $this->respond(['status' => 200, 'message' => 'Assessment request created']);
     }
 
@@ -113,8 +131,28 @@ class AssessmentRequestController extends ResourceController
             return $this->respond(['status' => 400, 'message' => 'Missing id']);
         }
 
+        // Get current request for audit logging
+        $currentRequest = $this->model->find($id);
+        $currentStatus = $currentRequest ? json_decode($currentRequest['requestStatus'], true) : null;
+
         $payload = ['requestStatus' => is_null($status) ? null : json_encode($status)];
-        $this->model->update($id, $payload);
+        $result = $this->model->update($id, $payload);
+        
+        if ($result) {
+            // Log status update
+            $this->auditLogger->log(
+                'Assessment Request Status Update',
+                'Request status updated',
+                $currentRequest['userId'] ?? null,
+                [
+                    'request_id' => $id,
+                    'previous_status' => $currentStatus,
+                    'new_status' => $status,
+                    'property_address' => $currentRequest['propertyAddress'] ?? 'N/A'
+                ]
+            );
+        }
+        
         return $this->respond(['status' => 200, 'message' => 'Request status updated']);
     }
 

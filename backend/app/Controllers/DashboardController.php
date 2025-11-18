@@ -33,49 +33,52 @@ class DashboardController extends ResourceController
         }
 
         try {
-            // Get total RPUS count
-            $totalRpus = $this->assessmentModel->countAllResults();
+            // Get all assessment requests
+            $allRequests = $this->assessmentModel->findAll();
+            $totalRequests = count($allRequests);
             
-            // Get total cancelled - check if requestStatus contains cancelled
-            $this->assessmentModel->resetQuery();
-            $cancelledRequests = $this->assessmentModel->findAll();
-            $totalCancelled = 0;
-            foreach ($cancelledRequests as $request) {
-                $status = $request['requestStatus'] ?? '';
-                if (is_string($status) && (stripos($status, 'cancel') !== false || stripos($status, 'reject') !== false)) {
-                    $totalCancelled++;
+            // Count by status for admin dashboard
+            $pendingRequests = 0;
+            $approvedRequests = 0;
+            $rejectedRequests = 0;
+            
+            foreach ($allRequests as $request) {
+                $status = strtolower($request['requestStatus'] ?? '');
+                if (stripos($status, 'pending') !== false || stripos($status, 'new') !== false || 
+                    stripos($status, 'declared') !== false || stripos($status, 'submitted') !== false) {
+                    $pendingRequests++;
+                } elseif (stripos($status, 'approved') !== false || stripos($status, 'completed') !== false) {
+                    $approvedRequests++;
+                } elseif (stripos($status, 'reject') !== false || stripos($status, 'cancel') !== false || 
+                         stripos($status, 'denied') !== false) {
+                    $rejectedRequests++;
                 }
             }
             
-            // Get total newly declared - check if requestStatus contains new or declared
-            $this->assessmentModel->resetQuery();
-            $newRequests = $this->assessmentModel->findAll();
-            $totalNewlyDeclared = 0;
-            foreach ($newRequests as $request) {
-                $status = $request['requestStatus'] ?? '';
-                if (is_string($status) && (stripos($status, 'new') !== false || stripos($status, 'declared') !== false)) {
-                    $totalNewlyDeclared++;
-                }
-            }
-            
-            // Total property is same as total RPUS for now
-            $totalProperty = $totalRpus;
+            // Estimate certificates generated (assuming each approved request can generate multiple certificates)
+            $certificatesGenerated = $approvedRequests;
 
             $statistics = [
-                'totalRpus' => $totalRpus,
-                'totalCancelled' => $totalCancelled,
-                'totalNewlyDeclared' => $totalNewlyDeclared,
-                'totalProperty' => $totalProperty
+                'totalRequests' => $totalRequests,
+                'pendingRequests' => $pendingRequests,
+                'approvedRequests' => $approvedRequests,
+                'rejectedRequests' => $rejectedRequests,
+                'certificatesGenerated' => $certificatesGenerated,
+                // Keep original stats for compatibility
+                'totalRpus' => $totalRequests,
+                'totalCancelled' => $rejectedRequests,
+                'totalNewlyDeclared' => $pendingRequests,
+                'totalProperty' => $totalRequests
             ];
 
             return $this->respond([
-                'success' => true,
+                'status' => 'success',
                 'data' => $statistics
             ]);
 
         } catch (\Exception $e) {
             return $this->respond([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Error fetching statistics: ' . $e->getMessage()
             ], 500);
         }

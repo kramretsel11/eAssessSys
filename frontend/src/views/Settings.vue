@@ -58,8 +58,17 @@
 
           <!-- Categories Tab -->
           <div class="tab-pane" id="categories" role="tabpanel">
-            <div class="d-flex justify-content-end mt-4">
-              <button class="btn btn-primary" @click="openCategoryModal(false)">Add Category</button>
+            <div class="d-flex justify-content-between align-items-center mt-4">
+              <div>
+                <h6>Categories Management</h6>
+                <small class="text-muted">{{ categories.length }} categories found</small>
+              </div>
+              <div>
+                <button class="btn btn-outline-secondary me-2" @click="fetchData">
+                  <i class="fas fa-refresh"></i> Refresh
+                </button>
+                <button class="btn btn-primary" @click="openCategoryModal(false)">Add Category</button>
+              </div>
             </div>
             <div class="table-responsive mt-3">
               <table class="table align-items-center mb-0">
@@ -90,8 +99,17 @@
 
           <!-- Market Values Tab -->
           <div class="tab-pane" id="marketValues" role="tabpanel">
-            <div class="d-flex justify-content-end mt-4">
-              <button class="btn btn-primary" @click="openMarketValueModal(false)">Add Market Value</button>
+            <div class="d-flex justify-content-between align-items-center mt-4">
+              <div>
+                <h6>Market Values Management</h6>
+                <small class="text-muted">{{ marketValues.length }} market values found</small>
+              </div>
+              <div>
+                <button class="btn btn-outline-secondary me-2" @click="fetchData">
+                  <i class="fas fa-refresh"></i> Refresh
+                </button>
+                <button class="btn btn-primary" @click="openMarketValueModal(false)">Add Market Value</button>
+              </div>
             </div>
             <div class="table-responsive mt-3">
               <table class="table align-items-center mb-0">
@@ -380,18 +398,64 @@ export default {
     methods: {
         async fetchData() {
             try {
+                // Show loading state
+                Swal.fire({
+                    title: 'Loading data...',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    willOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
                 const [categoriesRes, marketValuesRes, assessmentLevelsRes] = await Promise.all([
-                this.$api.get('/e_assessment/api/v1/misc/categories'),
-                this.$api.get('/e_assessment/api/v1/misc/market-values'),
-                this.$api.get('/e_assessment/api/v1/misc/assessment-levels'),
+                    this.$api.get('/e_assessment/api/v1/misc/categories'),
+                    this.$api.get('/e_assessment/api/v1/misc/market-values'),
+                    this.$api.get('/e_assessment/api/v1/misc/assessment-levels'),
                 ]);
                 
-                this.categories = categoriesRes.data.data;
-                this.marketValues = marketValuesRes.data.data;
-                this.assessmentLevels = assessmentLevelsRes.data.data;
+                // Close loading toast
+                Swal.close();
+                
+                // Handle response data structure
+                this.categories = categoriesRes.data?.data || categoriesRes.data || [];
+                this.marketValues = marketValuesRes.data?.data || marketValuesRes.data || [];
+                this.assessmentLevels = assessmentLevelsRes.data?.data || assessmentLevelsRes.data || [];
+                
+                console.log('Data loaded successfully:', {
+                    categories: this.categories.length,
+                    marketValues: this.marketValues.length,
+                    assessmentLevels: this.assessmentLevels.length
+                });
+                
             } catch (error) {
                 console.error('Error fetching data:', error);
-                // Swal.fire('Error', 'Failed to fetch data', 'error');
+                
+                // Close loading if still open
+                Swal.close();
+                
+                // Show detailed error message
+                let errorMessage = 'Failed to fetch data';
+                if (error.response) {
+                    errorMessage = error.response.data?.message || `Server error: ${error.response.status}`;
+                } else if (error.request) {
+                    errorMessage = 'No response from server. Please check if the backend is running.';
+                } else {
+                    errorMessage = error.message;
+                }
+                
+                Swal.fire({
+                    title: 'Error Loading Data',
+                    text: errorMessage,
+                    icon: 'error',
+                    confirmButtonText: 'Retry',
+                    showCancelButton: true,
+                    cancelButtonText: 'Cancel'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        this.fetchData(); // Retry loading
+                    }
+                });
             }
         },
 

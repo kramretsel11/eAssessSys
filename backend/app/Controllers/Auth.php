@@ -4,6 +4,7 @@ use CodeIgniter\HTTP\IncomingRequest;
 use App\Models\AuthModel;
 use App\Models\MiscModel;
 use App\Models\UsersModel;
+use App\Libraries\AuditLogger;
 
 use CodeIgniter\RESTful\ResourceController;
 use \Firebase\JWT\JWT;
@@ -25,11 +26,19 @@ class Auth extends BaseController
      */
     protected $userModel; // <--- ADD THIS LINE!
     
+    /**
+     * @var \App\Libraries\AuditLogger
+     */
+    protected $auditLogger;
+    
     public function __construct(){
         //Models
         $this->authModel = new AuthModel();
         $this->miscModel = new MiscModel();
         $this->userModel = new UsersModel();
+        
+        // Initialize audit logger
+        $this->auditLogger = new AuditLogger();
     }
 
     public function privateKey(){
@@ -55,12 +64,30 @@ class Auth extends BaseController
     }
 
     public function login(){
-        //Get API Request Data from NuxtJs
-        $data = $this->request->getJSON(); 
-        $hasPass = sha1($data->password);
+        // Set proper content type header
+        $this->response->setContentType('application/json');
+        
+        try {
+            //Get API Request Data from NuxtJs
+            $data = $this->request->getJSON(); 
+            
+            if (!$data || !isset($data->username) || !isset($data->password)) {
+                $response = [
+                    'error' => 400,
+                    'title' => 'Invalid Request',
+                    'message' => 'Username and password are required'
+                ];
+                
+                return $this->response
+                        ->setStatusCode(400)
+                        ->setContentType('application/json')
+                        ->setBody(json_encode($response));
+            }
+            
+            $hasPass = sha1($data->password);
 
-        //Select Query for finding User Information
-        $user = $this->authModel->where(['username' => $data->username, 'password' => $hasPass])->get()->getRow();
+            //Select Query for finding User Information
+            $user = $this->authModel->where(['username' => $data->username, 'password' => $hasPass])->get()->getRow();
         
         //Set Api Response return to the FE
         if($user){
@@ -93,9 +120,27 @@ class Auth extends BaseController
 
                 $jwt = JWT::encode($token, $secretKey, 'RS256');
 
+                // Log successful login
+                $this->auditLogger->logAuth(
+                    $user->id,
+                    'Login',
+                    'User logged in successfully',
+                    $this->request
+                );
+
+                // Determine user role based on userType ID
+                $role = 'user'; // default role
+                if ($user->userType->id == 1) { // Super Admin
+                    $role = 'admin';
+                } elseif ($user->userType->id == 2) { // Coordinator
+                    $role = 'coordinator';
+                }
+
                 $result = [
                     "fullName" => $user->firstName .' '. $user->lastName,
                     "userId" => $user->id,
+                    "userType" => $user->userType,
+                    "role" => $role,
                     "jwt" => $jwt,
                     // "userData" => $user
                 ];
@@ -107,6 +152,16 @@ class Auth extends BaseController
                         ->setContentType('application/json')
                         ->setBody(json_encode($result));
             } else {
+                // Log failed login attempt for deactivated account
+                if ($user) {
+                    $this->auditLogger->logAuth(
+                        $user->id,
+                        'Login Failed',
+                        'Login attempt with deactivated account',
+                        $this->request
+                    );
+                }
+                
                 $response = [
                     'title' => 'Account Deactivated',
                     'message' => 'Please contact your adminitrator for more information'
@@ -119,6 +174,16 @@ class Auth extends BaseController
             }
             
         } else {
+            // Log failed login attempt
+            $this->auditLogger->log(
+                0, // No user ID for failed login
+                'Login Failed',
+                'Authentication',
+                null,
+                'Failed login attempt for username: ' . ($data->username ?? 'unknown'),
+                $this->request
+            );
+            
             $response = [
                 'error' => 404,
                 'title' => 'Invalid Credentials',
@@ -130,10 +195,22 @@ class Auth extends BaseController
                     ->setContentType('application/json')
                     ->setBody(json_encode($response));
         }
-
-
-        // print_r(json_encode($data));
         
+        } catch (\Exception $e) {
+            // Log the error
+            log_message('error', 'Login error: ' . $e->getMessage());
+            
+            $response = [
+                'error' => 500,
+                'title' => 'Server Error',
+                'message' => 'An internal server error occurred'
+            ];
+
+            return $this->response
+                    ->setStatusCode(500)
+                    ->setContentType('application/json')
+                    ->setBody(json_encode($response));
+        }
     }  
 
     public function firstLoginChangePassword(){
@@ -167,6 +244,106 @@ class Auth extends BaseController
                     ->setContentType('application/json')
                     ->setBody(json_encode($response));
         }
+    }
+
+    /**
+     * Get current user information based on JWT token
+     */
+    public function getCurrentUser(){
+        $headers = $this->request->getHeaders();
+        
+        if (isset($headers['Authorization'])) {
+            $authHeader = $headers['Authorization'];
+            $token = str_replace('Bearer ', '', $authHeader[0]);
+            
+            try {
+                // For newer JWT library versions, need to create Key object
+                $key = new \Firebase\JWT\Key($this->privateKey(), 'RS256');
+                $decoded = JWT::decode($token, $key);
+                $userId = $decoded->userId;
+                
+                // Get user data
+                $user = $this->authModel->find($userId);
+                if ($user) {
+                    $user['userType'] = $this->miscModel->getUserType($user['userType']);
+                    
+                    // Determine role based on userType ID
+                    $role = 'user'; // default role
+                    if ($user['userType']->id == 1) { // Super Admin
+                        $role = 'admin';
+                    } elseif ($user['userType']->id == 2) { // Coordinator
+                        $role = 'coordinator';
+                    }
+                    
+                    $userData = [
+                        'id' => $user['id'],
+                        'username' => $user['username'],
+                        'firstName' => $user['firstName'],
+                        'lastName' => $user['lastName'],
+                        'email' => $user['email'],
+                        'userType' => $user['userType'],
+                        'role' => $role,
+                        'fullName' => $user['firstName'] . ' ' . $user['lastName']
+                    ];
+                    
+                    return $this->response
+                            ->setStatusCode(200)
+                            ->setContentType('application/json')
+                            ->setBody(json_encode($userData));
+                }
+            } catch (\Exception $e) {
+                return $this->response
+                        ->setStatusCode(401)
+                        ->setContentType('application/json')
+                        ->setBody(json_encode(['error' => 'Invalid token']));
+            }
+        }
+        
+        return $this->response
+                ->setStatusCode(401)
+                ->setContentType('application/json')
+                ->setBody(json_encode(['error' => 'No authorization token provided']));
+    }
+
+    /**
+     * Check if current user is admin
+     */
+    public function isAdmin(){
+        $headers = $this->request->getHeaders();
+        
+        if (isset($headers['Authorization'])) {
+            $authHeader = $headers['Authorization'];
+            $token = str_replace('Bearer ', '', $authHeader[0]);
+            
+            try {
+                // For newer JWT library versions, need to create Key object
+                $key = new \Firebase\JWT\Key($this->privateKey(), 'RS256');
+                $decoded = JWT::decode($token, $key);
+                $userId = $decoded->userId;
+                
+                // Get user data
+                $user = $this->authModel->find($userId);
+                if ($user) {
+                    $userType = $this->miscModel->getUserType($user['userType']);
+                    $isAdmin = ($userType->id == 1); // Super Admin ID
+                    
+                    return $this->response
+                            ->setStatusCode(200)
+                            ->setContentType('application/json')
+                            ->setBody(json_encode(['isAdmin' => $isAdmin, 'role' => $isAdmin ? 'admin' : 'user']));
+                }
+            } catch (\Exception $e) {
+                return $this->response
+                        ->setStatusCode(401)
+                        ->setContentType('application/json')
+                        ->setBody(json_encode(['error' => 'Invalid token']));
+            }
+        }
+        
+        return $this->response
+                ->setStatusCode(401)
+                ->setContentType('application/json')
+                ->setBody(json_encode(['error' => 'No authorization token provided']));
     }
 
 }

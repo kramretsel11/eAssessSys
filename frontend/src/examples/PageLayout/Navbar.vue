@@ -78,9 +78,10 @@
         <ul class="navbar-nav d-lg-block d-none">
           <li class="nav-item">
             <img
-              src="@/assets/img/logos/aurora.png"
-              alt="down-arrow"
+              src="/images/PROVINCIAL OF AURORA.jpg"
+              alt="Provincial of Aurora Logo"
               class="mb-1"
+              style="height: 40px; width: auto; object-fit: contain;"
             />
           </li>
         </ul>

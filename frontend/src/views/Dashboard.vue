@@ -244,8 +244,11 @@
               <div class="card-body text-center p-4">
                 <div class="mb-3">
                   <div class="mx-auto d-flex align-items-center justify-content-center" 
-                       style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                    <i class="fas fa-map-marker-alt text-white" style="font-size: 1.5rem;"></i>
+                       style="width: 60px; height: 60px; border-radius: 50%; overflow: hidden; border: 3px solid #667eea;">
+                    <img :src="getMunicipalityImage(municipality.name)" 
+                         :alt="municipality.name"
+                         style="width: 100%; height: 100%; object-fit: cover;"
+                         @error="onImageError">
                   </div>
                 </div>
                 <h6 class="text-dark font-weight-bold mb-1" style="font-size: 0.9rem;">
@@ -715,6 +718,25 @@ export default {
     }
   },
   methods: {
+    getMunicipalityImage(municipalityName) {
+      const imageMap = {
+        'Maria Aurora': '/images/Maria Aurora.png',
+        'San Luis': '/images/SAN LUIS.png', 
+        'Baler': '/images/BALER.jpg',
+        'Dipaculao': '/images/DIPACULAO.jpg',
+        'Dingalan': '/images/DINGALAN.jpg',
+        'Dinalungan': '/images/DINALUNGAN.jpg',
+        'Casiguran': '/images/CASIGURAN.jpg',
+        'Dilasag': '/images/DILASAG.jpg'
+      };
+      
+      return imageMap[municipalityName] || '/images/PROVINCIAL OF AURORA.jpg';
+    },
+    
+    onImageError(event) {
+      // Fallback to default provincial image if municipality image fails to load
+      event.target.src = '/images/PROVINCIAL OF AURORA.jpg';
+    },
     capitalize(value) {
       if (!value) return '';
       return value.charAt(0).toUpperCase() + value.slice(1);
